@@ -176,6 +176,8 @@ Reference/API
 .. automodapi:: astropy.vo.client.async
    :no-inheritance-diagram:
 
+.. automodapi:: astropy.vo.client.exceptions
+
 .. automodapi:: astropy.vo.validator.validate
    :no-inheritance-diagram:
 

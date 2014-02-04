@@ -78,6 +78,8 @@ include or exclude any warnings or exceptions, as desired.
 However, this should be done with caution. Adding exceptions
 to non-critical list is not recommended.
 
+.. _vo-sec-validator-build-db:
+
 Building the Database
 ^^^^^^^^^^^^^^^^^^^^^
 

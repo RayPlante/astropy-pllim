@@ -1,25 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
-"""Tests for `astropy.vo.client`
-
-Examples
---------
-Running inside Python::
-
-    >>> import astropy
-    >>> astropy.test('vo.client', remote_data=True)
-
-Running from top level via command line::
-
-    $ python setup.py test -P vo.client --remote-data
-
-Running from ``astropy/vo/client/tests`` directory::
-
-    $ setenv ASTROPY_USE_SYSTEM_PYTEST 1
-    $ py.test test_vo.py --remote-data
-
-"""
+"""Tests for `astropy.vo.client.conesearch` and `astropy.vo.client.async`."""
 from __future__ import absolute_import, division, print_function, unicode_literals
-from ....extern import six
 
 # STDLIB
 import os
@@ -29,6 +10,7 @@ import numpy as np
 
 # LOCAL
 from .. import conesearch, vos_catalog
+from ..exceptions import VOSError
 from .... import units as u
 from ....coordinates import ICRS
 from ....tests.helper import pytest, remote_data
@@ -45,37 +27,6 @@ SCS_DEC = 0
 SCS_SR = 0.1
 SCS_CENTER = ICRS(SCS_RA, SCS_DEC, unit=(u.degree, u.degree))
 SCS_RADIUS = SCS_SR * u.degree
-
-
-@remote_data
-def test_basic_db():
-    """Read dummy ``basic.json`` database to test underlying database
-    functionality.
-
-    """
-    basic_db = vos_catalog.get_remote_catalog_db('basic')
-    assert sorted(basic_db) == ['__version__', 'catalogs', 'content']
-    assert basic_db['content'] == ['A', 'B', 'C']
-
-    assert basic_db.list_catalogs() == ['foo']
-    assert basic_db.list_catalogs(pattern='whatever') == []
-
-    foo_cat1 = basic_db.get_catalog('foo')
-    for k, v in basic_db.get_catalogs():
-        assert k == 'foo'
-        assert v._tree == foo_cat1._tree == {'title': 'bar', 'url': 'bar.foo'}
-
-    foo_cat2 = basic_db.get_catalog_by_url('bar.foo')
-    for k, v in basic_db.get_catalogs_by_url('bar.foo'):
-        assert k == 'foo'
-        assert v._tree == foo_cat2._tree == {'title': 'bar', 'url': 'bar.foo'}
-
-    try:
-        x = basic_db.get_catalog('not_there')
-    except vos_catalog.VOSError:
-        pass
-
-    assert vos_catalog.list_catalogs('basic') == ['foo']
 
 
 @remote_data
@@ -237,7 +188,7 @@ class TestErrorResponse(object):
         url = get_pkg_data_filename(os.path.join(self.datadir, xmlfile))
         try:
             r = vos_catalog._vo_service_request(url, self.pedantic, {})
-        except vos_catalog.VOSError as e:
+        except VOSError as e:
             assert msg in str(e)
 
     @pytest.mark.parametrize(('id'), [1, 2, 3, 4])

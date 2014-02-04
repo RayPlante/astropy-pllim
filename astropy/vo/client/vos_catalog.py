@@ -7,17 +7,26 @@ from ...extern.six.moves import urllib
 # STDLIB
 import fnmatch
 import json
+import os
 import re
+import warnings
+
+from collections import defaultdict
+from copy import deepcopy
 
 # LOCAL
+from .exceptions import VOSError, MissingCatalog, DuplicateCatalogName, DuplicateCatalogURL, InvalidAccessURL
 from ...config.configuration import ConfigurationItem
-from ...io.votable import table, tree
+from ...io.votable import parse_single_table, table, tree
 from ...io.votable.exceptions import vo_raise, vo_warn, E19, W24, W25
 from ...utils.console import color_print
 from ...utils.data import get_readable_fileobj
+from ...utils.exceptions import AstropyUserWarning
+from ...utils.misc import JsonCustomEncoder
+from ...utils.xml.unescaper import unescape_all
 
 
-__all__ = ['VOSCatalog', 'VOSDatabase', 'get_remote_catalog_db',
+__all__ = ['VOSBase', 'VOSCatalog', 'VOSDatabase', 'get_remote_catalog_db',
            'call_vo_service', 'list_catalogs']
 
 __dbversion__ = 1
@@ -29,12 +38,8 @@ BASEURL = ConfigurationItem('vos_baseurl',
                             'URL where VO Service database file is stored.')
 
 
-class VOSError(Exception):  # pragma: no cover
-    pass
-
-
-class VOSCatalog(object):
-    """A class to represent VO Service Catalog.
+class VOSBase(object):
+    """Base class for `VOSCatalog` and `VOSDatabase`.
 
     Parameters
     ----------
@@ -52,18 +57,15 @@ class VOSCatalog(object):
         """Expose dictionary key look-up."""
         return self._tree[what]
 
+    def __setitem__(self, what, value):
+        """Expose dictionary key assignment."""
+        self._tree[what] = value
+
     def __iter__(self):
         """Expose dictionary iteration."""
         return iter(self._tree)
 
-    def __str__(self):  # pragma: no cover
-        """Show the most important and unique things about a catalog."""
-        keys = ('title', 'url')
-        out_str = '\n'.join(['{0}: {1}'.format(key, self._tree[key])
-                             for key in keys if key in self._tree])
-        return out_str
-
-    def dumps(self):  # pragma: no cover
+    def dumps(self):
         """Dump the contents into a string.
 
         Returns
@@ -72,10 +74,94 @@ class VOSCatalog(object):
             Contents as JSON string dump.
 
         """
-        return json.dumps(self._tree, sort_keys=True, indent=4)
+        return json.dumps(self._tree, cls=JsonCustomEncoder, sort_keys=True,
+                          indent=4)
 
 
-class VOSDatabase(VOSCatalog):
+class VOSCatalog(VOSBase):
+    """A class to represent VO Service Catalog.
+
+    Parameters
+    ----------
+    tree : JSON tree
+
+    Raises
+    ------
+    VOSError
+        Missing necessary key(s).
+
+    """
+    _compulsory_keys = ('title', 'url')
+
+    def __init__(self, tree):
+        super(VOSCatalog, self).__init__(tree)
+
+        for key in self._compulsory_keys:
+            if key not in self._tree:
+                raise VOSError('Catalog must have "{0}" key.'.format(key))
+
+    def __str__(self):  # pragma: no cover
+        """Show the most important and unique things about a catalog."""
+        out_str = '\n'.join(['{0}: {1}'.format(key, self._tree[key])
+                             for key in self._compulsory_keys
+                             if key in self._tree])
+        return out_str
+
+    def delete_attribute(self, key):
+        """Delete given metadata key and its value from the catalog.
+
+        Parameters
+        ----------
+        key : str
+            Metadata key to delete.
+
+        Raises
+        ------
+        KeyError
+            Key not found.
+
+        VOSError
+            Key must exist in catalog, therefore cannot be deleted.
+
+        """
+        if key in self._compulsory_keys:
+            raise VOSError('{0} must exist in catalog, therefore cannot be '
+                           'deleted.'.format(key))
+        del self._tree[key]
+
+    @classmethod
+    def from_user(cls, title, url, **kwargs):
+        """Create a new VO Service Catalog with user parameters.
+
+        Parameters
+        ----------
+        title : str
+            Title of the catalog.
+
+        url : str
+            Access URL of the service. This is used to build queries.
+
+        kwargs : dict
+            Additional metadata as keyword-value pairs describing the catalog,
+            except 'title' and 'url'.
+
+        Returns
+        -------
+        cat : `VOSCatalog`
+            VO Service Catalog.
+
+        Raises
+        ------
+        TypeError
+            Multiple values given for keyword argument.
+
+        """
+        tree = {'title': title, 'url': url}
+        tree.update(kwargs)
+        return cls(tree)
+
+
+class VOSDatabase(VOSBase):
     """A class to represent a collection of `VOSCatalog`.
 
     Parameters
@@ -85,23 +171,39 @@ class VOSDatabase(VOSCatalog):
     Raises
     ------
     VOSError
-        If given ``tree`` does not have 'catalogs' key.
+        If given ``tree`` does not have 'catalogs' key
+        or catalog is invalid.
 
     """
     def __init__(self, tree):
-        self._tree = tree
-
-        if tree['__version__'] > __dbversion__:  # pragma: no cover
-            vo_warn(W24)
-
-        if not 'catalogs' in tree:  # pragma: no cover
+        if not 'catalogs' in tree:
             raise VOSError("Invalid VO service catalog database")
 
+        super(VOSDatabase, self).__init__(tree)
         self._catalogs = tree['catalogs']
+
+        if self.version > __dbversion__:  # pragma: no cover
+            vo_warn(W24)
+
+        # Maps access URL to primary key(s).
+        # URL is the real key, but we chose title because it is more readable
+        # when written out to JSON.
+        self._url_keys = defaultdict(list)
+        for key, cat in self.get_catalogs():
+            self._url_keys[cat['url']].append(key)
 
     def __str__(self):  # pragma: no cover
         """Show the most important and unique things about a database."""
         return '\n'.join(sorted(self._catalogs))
+
+    def __len__(self):
+        """Return the number of catalogs in database."""
+        return len(self._catalogs)
+
+    @property
+    def version(self):
+        """Database version number."""
+        return self._tree['__version__']
 
     def get_catalogs(self):
         """Iterator to get all catalogs."""
@@ -110,9 +212,9 @@ class VOSDatabase(VOSCatalog):
 
     def get_catalogs_by_url(self, url):
         """Like :func:`get_catalogs` but using access URL look-up."""
-        for key, cat in self.get_catalogs():
-            if cat['url'] == url:
-                yield key, cat
+        keys = self._url_keys[url]
+        for key in keys:
+            yield key, VOSCatalog(self._catalogs[key])
 
     def get_catalog(self, name):
         """Get one catalog of given name.
@@ -128,12 +230,13 @@ class VOSDatabase(VOSCatalog):
 
         Raises
         ------
-        VOSError
+        MissingCatalog
             If catalog is not found.
 
         """
-        if not name in self._catalogs:
-            raise VOSError("No catalog '{0}' found.".format(name))
+        if name not in self._catalogs:
+            raise MissingCatalog("No catalog '{0}' found.".format(name))
+
         return VOSCatalog(self._catalogs[name])
 
     def get_catalog_by_url(self, url):
@@ -141,13 +244,12 @@ class VOSDatabase(VOSCatalog):
         On multiple matches, only first match is returned.
 
         """
-        out_cat = None
-        for key, cat in self.get_catalogs_by_url(url):
-            out_cat = cat
-            break
-        if out_cat is None:  # pragma: no cover
-            raise VOSError("No catalog with URL '{0}' found.".format(url))
-        return out_cat
+        keys = self._url_keys[url]
+
+        if len(keys) < 1:
+            raise MissingCatalog("No catalog with URL '{0}' found.".format(url))
+
+        return VOSCatalog(self._catalogs[keys[0]])
 
     def list_catalogs(self, pattern=None, sort=True):
         """List catalog names.
@@ -184,6 +286,294 @@ class VOSDatabase(VOSCatalog):
 
         return out_arr
 
+    def add_catalog(self, name, cat, allow_duplicate_url=False):
+        """Add a catalog to database.
+
+        Parameters
+        ----------
+        name : str
+            Primary key for the catalog.
+
+        cat : `VOSCatalog`
+            Catalog to add.
+
+        allow_duplicate_url : bool
+            Allow catalog with duplicate access URL?
+
+        Raises
+        ------
+        VOSError
+            Invalid catalog.
+
+        DuplicateCatalogName
+            Catalog with given name already exists.
+
+        DuplicateCatalogURL
+            Catalog with given access URL already exists.
+
+        """
+        if not isinstance(cat, VOSCatalog):
+            raise VOSError('{0} is not a VO Service Catalog.'.format(cat))
+
+        if name in self._catalogs:
+            raise DuplicateCatalogName('{0} already exists.'.format(name))
+
+        url = cat['url']
+        names = self._url_keys[url]
+        if len(names) > 0 and not allow_duplicate_url:
+            raise DuplicateCatalogURL(
+                '{0} already exists: {1}'.format(url, names))
+
+        self._catalogs[name] = deepcopy(cat._tree)
+        self._url_keys[url].append(name)
+
+    def delete_catalog(self, name):
+        """Delete a catalog from database with given name.
+
+        Parameters
+        ----------
+        name : str
+            Primary key identifying the catalog.
+
+        Raises
+        ------
+        MissingCatalog
+            If catalog is not found.
+
+        """
+        if name not in self._catalogs:
+            raise MissingCatalog('{0} not found.'.format(name))
+
+        self._url_keys[self._catalogs[name]['url']].remove(name)
+        del self._catalogs[name]
+
+    def delete_catalog_by_url(self, url):
+        """Like :func:`delete_catalog` but using access URL.
+        On multiple matches, all matches are deleted.
+
+        """
+        keys = sorted(self._url_keys[url])  # Makes a copy of list
+
+        if len(keys) < 1:
+            raise MissingCatalog('{0} not found.'.format(url))
+
+        for key in keys:
+            self.delete_catalog(key)
+
+    def merge(self, other, **kwargs):
+        """Merge two database together by adding catalogs from
+        ``other`` to a copy of ``self``.
+
+        Parameters
+        ----------
+        other : `VOSDatabase`
+            The other database to merge.
+
+        kwargs : dict
+            Keywords accepted by :func:`add_catalog`.
+
+        Returns
+        -------
+        db : `VOSDatabase`
+            Merged database.
+
+        Raises
+        ------
+        VOSError
+            Invalid database or incompatible version.
+
+        """
+        if not isinstance(other, VOSDatabase):
+            raise VOSError('{0} is not a VO database.'.format(other))
+
+        if other.version != self.version:
+            raise VOSError('Incompatible database version: {0}, '
+                           '{1}'.format(self.version, other.version))
+
+        db = deepcopy(self)
+        for key, cat in other.get_catalogs():
+            db.add_catalog(key, cat, **kwargs)
+
+        return db
+
+    def to_json(self, filename, clobber=False):
+        """Write database content to a JSON file.
+
+        Parameters
+        ----------
+        filename : str
+            JSON file.
+
+        clobber : bool
+            Overwrite existing file?
+
+        Raises
+        ------
+        OSError
+            File exists.
+
+        """
+        if os.path.exists(filename) and not clobber:  # pragma: no cover
+            raise OSError('{0} exists.'.format(filename))
+
+        with open(filename, 'w') as fd:
+            fd.write(self.dumps())
+
+    @classmethod
+    def from_scratch(cls):
+        """Create an empty database of VO services.
+
+        Empty database format::
+
+            {
+                "__version__": 1,
+                "catalogs" : {
+                }
+            }
+
+        Returns
+        -------
+        db : `VOSDatabase`
+            Empty database.
+
+        """
+        return cls({'__version__': __dbversion__, 'catalogs': {}})
+
+    @classmethod
+    def from_json(cls, filename, **kwargs):
+        """Create a database of VO services from a JSON file.
+
+        Example JSON format for Cone Search::
+
+            {
+                "__version__": 1,
+                "catalogs" : {
+                    "My Cone Search": {
+                        "capabilityClass": "ConeSearch",
+                        "title": "My Cone Search",
+                        "url": "http://foo/cgi-bin/search?CAT=bar&",
+                        ...
+                    },
+                    "Another Cone Search": {
+                        ...
+                    }
+                }
+            }
+
+        Parameters
+        ----------
+        filename : str
+            JSON file.
+
+        kwargs : dict
+            Keywords accepted by
+            :func:`astropy.utils.data.get_readable_fileobj`.
+
+        Returns
+        -------
+        db : `VOSDatabase`
+            Database from given file.
+
+        """
+        with get_readable_fileobj(filename, **kwargs) as fd:
+            tree = json.load(fd)
+
+        return cls(tree)
+
+    @classmethod
+    def from_registry(cls, registry_url, **kwargs):
+        """Create a database of VO services from VO registry URL.
+
+        This is described in detail in :ref:`vo-sec-validator-build-db`,
+        except for the ``validate_xxx`` keys that are added by the
+        validator itself.
+
+        Parameters
+        ----------
+        registry_url : str
+            URL of VO registry that returns a VO Table.
+            For example, see ``astropy.vo.validator.validate.CS_MSTR_LIST``.
+            Pedantic is automatically set to `False` for parsing.
+
+        kwargs : dict
+            Keywords accepted by
+            :func:`~astropy.utils.data.get_readable_fileobj`.
+
+        Returns
+        -------
+        db : `VOSDatabase`
+            Database from given registry.
+
+        Raises
+        ------
+        VOSError
+            Invalid VO registry.
+
+        """
+        # Download registry as VO table
+        with get_readable_fileobj(registry_url, **kwargs) as fd:
+            tab_all = parse_single_table(fd, pedantic=False)
+
+        # Registry must have these fields
+        compulsory_fields = ['title', 'accessURL']
+        cat_fields = tab_all.array.dtype.names
+        for field in compulsory_fields:
+            if field not in cat_fields:  # pragma: no cover
+                raise VOSError('"{0}" is missing from registry.'.format(field))
+
+        title_counter = defaultdict(int)
+        title_fmt = '{0} {1}'
+        db = cls.from_scratch()
+
+        # Each row in the table becomes a catalog
+        for arr in tab_all.array:
+            cur_cat = {}
+            cur_key = ''
+
+            # Process each field and build the catalog.
+            # Catalog is completely built before being thrown out
+            # because codes need less changes should we decide to
+            # allow duplicate URLs in the future.
+            for field in cat_fields:
+
+                # For primary key, a number needs to be appended to the title
+                # because registry can have multiple entries with the same
+                # title but different URLs.
+                if field == 'title':
+                    cur_title = arr['title']
+                    title_counter[cur_title] += 1  # Starts with 1
+
+                    if isinstance(cur_title, bytes):  # pragma: py3
+                        cur_key = title_fmt.format(cur_title.decode('ascii'),
+                                                   title_counter[cur_title])
+                    else:  # pragma: py2
+                        cur_key = title_fmt.format(cur_title,
+                                                   title_counter[cur_title])
+
+                # Special handling of access URL, otherwise no change.
+                if field == 'accessURL':
+                    cur_cat['url'] = unescape_all(arr['accessURL'])
+                else:
+                    cur_cat[field] = arr[field]
+
+            # New field to track duplicate access URLs.
+            cur_cat['duplicatesIgnored'] = 0
+
+            # Add catalog to database, unless duplicate access URL exists.
+            # In that case, the entry is thrown out and the associated
+            # counter is updated.
+            dup_keys = db._url_keys[cur_cat['url']]
+            if len(dup_keys) < 1:
+                db.add_catalog(
+                    cur_key, VOSCatalog(cur_cat), allow_duplicate_url=False)
+            else:
+                db._catalogs[dup_keys[0]]['duplicatesIgnored'] += 1
+                warnings.warn(
+                    '{0} is thrown out because it has same access URL as '
+                    '{1}.'.format(cur_key, dup_keys[0]), AstropyUserWarning)
+
+        return db
+
 
 def get_remote_catalog_db(dbname, cache=True, verbose=True):
     """Get a database of VO services (which is a JSON file) from a remote
@@ -205,16 +595,13 @@ def get_remote_catalog_db(dbname, cache=True, verbose=True):
 
     Returns
     -------
-    obj : `VOSDatabase` object
+    db : `VOSDatabase`
         A database of VO services.
 
     """
-    with get_readable_fileobj(BASEURL() + dbname + '.json',
-                              encoding='utf8', cache=cache,
-                              show_progress=verbose) as fd:
-        tree = json.load(fd)
-
-    return VOSDatabase(tree)
+    return VOSDatabase.from_json(
+        urllib.parse.urljoin(BASEURL(), dbname + '.json'),
+        encoding='utf8', cache=cache, show_progress=verbose)
 
 
 def _get_catalogs(service_type, catalog_db, **kwargs):
@@ -232,6 +619,11 @@ def _get_catalogs(service_type, catalog_db, **kwargs):
     -------
     catalogs : list of tuple
         List of catalogs in the form of ``(key, VOSCatalog)``.
+
+    Raises
+    ------
+    VOSError
+        Invalid ``catalog_db``.
 
     """
     if catalog_db is None:
@@ -254,8 +646,16 @@ def _get_catalogs(service_type, catalog_db, **kwargs):
 
 
 def _vo_service_request(url, pedantic, kwargs, verbose=False):
+    """This is called by :func:`call_vo_service`.
+
+    Raises
+    ------
+    InvalidAccessURL
+        Invalid access URL.
+
+    """
     if len(kwargs) and not (url.endswith('?') or url.endswith('&')):
-        raise VOSError("url should already end with '?' or '&'")
+        raise InvalidAccessURL("url should already end with '?' or '&'")
 
     query = []
     for key, value in six.iteritems(kwargs):

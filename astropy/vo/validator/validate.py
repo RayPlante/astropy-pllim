@@ -18,6 +18,7 @@ import numpy as np
 
 # LOCAL
 from ..client import vos_catalog
+from ..client.exceptions import VOSError
 from ...config.configuration import ConfigurationItem
 from ...io import votable
 from ...io.votable.exceptions import E19
@@ -183,8 +184,8 @@ def check_conesearch_sites(destdir=os.curdir, verbose=True, parallel=True,
         num_match = fixed_urls.count(cur_url)
 
         if num_match == 0:
-            warnings.warn('{0} not found in cs_mstr_list! Skipping...'.format(cur_url),
-                          AstropyUserWarning)
+            warnings.warn('{0} not found in cs_mstr_list! '
+                          'Skipping...'.format(cur_url), AstropyUserWarning)
             continue
 
         i = fixed_urls.index(cur_url)
@@ -279,7 +280,8 @@ def check_conesearch_sites(destdir=os.curdir, verbose=True, parallel=True,
             uniq_rows, t_end - t_beg))
 
     if n['good'] == 0:  # pragma: no cover
-        warnings.warn('No good sites available for Cone Search.', AstropyUserWarning)
+        warnings.warn('No good sites available for Cone Search.',
+                      AstropyUserWarning)
 
 
 def _do_validation(url):
@@ -312,7 +314,7 @@ def _do_validation(url):
             try:
                 tab = vos_catalog.vo_tab_parse(votable.table.parse(
                     r.get_vo_xml_path(), pedantic=False), r.url, {})
-            except (E19, IndexError, vos_catalog.VOSError) as e:  # pragma: no cover
+            except (E19, IndexError, VOSError) as e:  # pragma: no cover
                 lines.append(str(e))
                 nexceptions += 1
         lines = [str(x.message) for x in warning_lines] + lines
@@ -345,7 +347,8 @@ def _categorize_result(r):
     r : `astropy.io.votable.validator.result.Result` object
 
     """
-    if 'network_error' in r and r['network_error'] is not None:  # pragma: no cover
+    if ('network_error' in r and
+            r['network_error'] is not None):  # pragma: no cover
         r['out_db_name'] = 'nerr'
         r['expected'] = 'broken'
     elif ((r['nexceptions'] == 0 and r['nwarnings'] == 0) or
@@ -359,9 +362,8 @@ def _categorize_result(r):
         r['out_db_name'] = 'warn'
         r['expected'] = 'incorrect'
     else:  # pragma: no cover
-        raise vos_catalog.VOSError(
-            'Unhandled validation result attributes: '
-            '{0}'.format(r._attributes))
+        raise VOSError(
+            'Unhandled validation result attributes: {0}'.format(r._attributes))
 
 
 def _html_subindex(args):

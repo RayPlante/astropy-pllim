@@ -11,6 +11,7 @@ import numpy as np
 # LOCAL
 from . import vos_catalog
 from .async import AsyncBase
+from .exceptions import ConeSearchError, VOSError
 from ... import units as u
 from ...config.configuration import ConfigurationItem
 from ...coordinates import Angle, ICRS, SphericalCoordinatesBase
@@ -30,10 +31,6 @@ __doctest_skip__ = ['AsyncConeSearch', 'AsyncSearchAll']
 
 CONESEARCH_DBNAME = ConfigurationItem('conesearch_dbname', 'conesearch_good',
                                       'Conesearch database name.')
-
-
-class ConeSearchError(Exception):  # pragma: no cover
-    pass
 
 
 class AsyncConeSearch(AsyncBase):
@@ -79,7 +76,7 @@ class AsyncConeSearch(AsyncBase):
 
     """
     def __init__(self, *args, **kwargs):
-        AsyncBase.__init__(self, conesearch, *args, **kwargs)
+        super(AsyncConeSearch, self).__init__(conesearch, *args, **kwargs)
 
 
 def conesearch(center, radius, verb=1, **kwargs):
@@ -283,7 +280,7 @@ def search_all(*args, **kwargs):
     for name, catalog in catalogs:
         try:
             result = conesearch(catalog_db=catalog, *args, **kwargs)
-        except vos_catalog.VOSError:
+        except VOSError:
             pass
         else:
             all_results[result.url] = result
