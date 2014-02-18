@@ -199,7 +199,7 @@ def check_conesearch_sites(destdir=os.curdir, verbose=True, parallel=True,
         mp_proc = pool.map_async(_do_validation, all_urls,
                                  callback=mp_list.append)
         mp_proc.wait()
-        if len(mp_list) < 1:
+        if len(mp_list) < 1:  # pragma: no cover
             raise ValidationMultiprocessingError(
                 'Multiprocessing pool callback returned empty list.')
         mp_list = mp_list[0]

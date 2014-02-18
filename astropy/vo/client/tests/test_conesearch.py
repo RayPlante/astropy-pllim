@@ -10,7 +10,7 @@ import numpy as np
 
 # LOCAL
 from .. import conesearch, vos_catalog
-from ..exceptions import VOSError
+from ..exceptions import VOSError, ConeSearchError
 from .... import units as u
 from ....coordinates import ICRS
 from ....tests.helper import pytest, remote_data
@@ -62,6 +62,12 @@ class TestConeSearch(object):
                 ['BROKEN', 'USNO ACT', 'USNO NOMAD', 'USNO-A2', 'USNO-B1'])
         assert (conesearch.list_catalogs(pattern='usno*a') ==
                 ['USNO ACT', 'USNO NOMAD', 'USNO-A2'])
+
+    def test_no_result(self):
+        with pytest.raises(VOSError):
+            tab_1 = conesearch.conesearch(
+                SCS_CENTER, 0.001, catalog_db=self.url,
+                pedantic=self.pedantic, verbose=self.verbose)
 
     @pytest.mark.parametrize(('center', 'radius'),
                              [((SCS_RA, SCS_DEC), SCS_SR),
@@ -150,6 +156,12 @@ class TestConeSearch(object):
 
         assert n_2 > 0 and n_2 <= n_1 * 1.5
         assert t_2 > 0 and t_2 <= t_1 * 1.5
+
+    def test_prediction_neg_radius(self):
+        with pytest.raises(ConeSearchError):
+            t, n = conesearch.predict_search(
+                self.url, SCS_CENTER, -1, pedantic=self.pedantic,
+                verbose=self.verbose)
 
     def teardown_class(self):
         conesearch.CONESEARCH_DBNAME.set(

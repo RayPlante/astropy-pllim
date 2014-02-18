@@ -57,7 +57,7 @@ class ConeSearchResults(object):
             Default is sys.stdout.
 
         """
-        if fout is None:
+        if fout is None:  # pragma: no cover
             fout = sys.stdout
 
         str_list = []
@@ -97,7 +97,7 @@ class ConeSearchResults(object):
             This is useful to see why a catalog failed validation.
 
         """
-        if fout is None:
+        if fout is None:  # pragma: no cover
             fout = sys.stdout
 
         assert typ in self.dbtypes
@@ -144,7 +144,7 @@ class ConeSearchResults(object):
             Default is screen output.
 
         """
-        if fout is None:
+        if fout is None:  # pragma: no cover
             fout = sys.stdout
 
         str_list = []

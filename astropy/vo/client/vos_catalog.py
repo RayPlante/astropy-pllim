@@ -361,8 +361,7 @@ class VOSDatabase(VOSBase):
             self.delete_catalog(key)
 
     def merge(self, other, **kwargs):
-        """Merge two database together by adding catalogs from
-        ``other`` to a copy of ``self``.
+        """Merge two database together.
 
         Parameters
         ----------
@@ -390,9 +389,10 @@ class VOSDatabase(VOSBase):
             raise VOSError('Incompatible database version: {0}, '
                            '{1}'.format(self.version, other.version))
 
-        db = deepcopy(self)
-        for key, cat in other.get_catalogs():
-            db.add_catalog(key, cat, **kwargs)
+        db = VOSDatabase.from_scratch()
+        for old_db in (self, other):
+            for key, cat in old_db.get_catalogs():
+                db.add_catalog(key, cat, **kwargs)
 
         return db
 
@@ -532,7 +532,7 @@ class VOSDatabase(VOSBase):
         db = cls.from_scratch()
 
         # Each row in the table becomes a catalog
-        for arr in tab_all.array:
+        for arr in tab_all.array.data:
             cur_cat = {}
             cur_key = ''
 
