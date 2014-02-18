@@ -20,7 +20,7 @@ from ...config.configuration import ConfigurationItem
 from ...io.votable import parse_single_table, table, tree
 from ...io.votable.exceptions import vo_raise, vo_warn, E19, W24, W25
 from ...utils.console import color_print
-from ...utils.data import get_readable_fileobj
+from ...utils.data import get_readable_fileobj, REMOTE_TIMEOUT
 from ...utils.exceptions import AstropyUserWarning
 from ...utils.misc import JsonCustomEncoder
 from ...utils.xml.unescaper import unescape_all
@@ -226,7 +226,7 @@ class VOSDatabase(VOSBase):
 
         Returns
         -------
-        obj : `VOSCatalog` object
+        obj : `VOSCatalog`
 
         Raises
         ------
@@ -481,7 +481,7 @@ class VOSDatabase(VOSBase):
         return cls(tree)
 
     @classmethod
-    def from_registry(cls, registry_url, **kwargs):
+    def from_registry(cls, registry_url, timeout=60, **kwargs):
         """Create a database of VO services from VO registry URL.
 
         This is described in detail in :ref:`vo-sec-validator-build-db`,
@@ -494,6 +494,11 @@ class VOSDatabase(VOSBase):
             URL of VO registry that returns a VO Table.
             For example, see ``astropy.vo.validator.validate.CS_MSTR_LIST``.
             Pedantic is automatically set to `False` for parsing.
+
+        timeout : number
+            Temporarily set ``astropy.utils.data.REMOTE_TIMEOUT`` to
+            this value to avoid time out error while reading the
+            entire registry.
 
         kwargs : dict
             Keywords accepted by
@@ -511,8 +516,9 @@ class VOSDatabase(VOSBase):
 
         """
         # Download registry as VO table
-        with get_readable_fileobj(registry_url, **kwargs) as fd:
-            tab_all = parse_single_table(fd, pedantic=False)
+        with REMOTE_TIMEOUT.set_temp(timeout):
+            with get_readable_fileobj(registry_url, **kwargs) as fd:
+                tab_all = parse_single_table(fd, pedantic=False)
 
         # Registry must have these fields
         compulsory_fields = ['title', 'accessURL']
@@ -677,7 +683,7 @@ def vo_tab_parse(tab, url, kwargs):
 
     Parameters
     ----------
-    tab : `astropy.io.votable.tree.VOTableFile` object
+    tab : `astropy.io.votable.tree.VOTableFile`
 
     url : str
         URL used to obtain ``tab``.
@@ -687,7 +693,7 @@ def vo_tab_parse(tab, url, kwargs):
 
     Returns
     -------
-    out_tab : `astropy.io.votable.tree.Table` object
+    out_tab : `astropy.io.votable.tree.Table`
 
     Raises
     ------
@@ -795,7 +801,7 @@ def call_vo_service(service_type, catalog_db=None, pedantic=None,
 
     Returns
     -------
-    obj : `astropy.io.votable.tree.Table` object
+    obj : `astropy.io.votable.tree.Table`
         First table from first successful VO service request.
 
     Raises

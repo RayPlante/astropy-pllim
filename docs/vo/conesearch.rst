@@ -183,3 +183,5 @@ Reference/API
 
 .. automodapi:: astropy.vo.validator.inspect
    :no-inheritance-diagram:
+
+.. automodapi:: astropy.vo.validator.exceptions

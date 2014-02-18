@@ -18,7 +18,7 @@ import tempfile
 from .. import vos_catalog
 from ..exceptions import VOSError, MissingCatalog, DuplicateCatalogName, DuplicateCatalogURL
 from ....tests.helper import pytest, remote_data
-from ....utils.data import get_pkg_data_filename, REMOTE_TIMEOUT
+from ....utils.data import get_pkg_data_filename
 
 
 __doctest_skip__ = ['*']
@@ -204,9 +204,8 @@ def test_db_from_registry():
     """
     from ...validator.validate import CS_MSTR_LIST
 
-    with REMOTE_TIMEOUT.set_temp(60):
-        db = vos_catalog.VOSDatabase.from_registry(
-            CS_MSTR_LIST(), encoding='binary', show_progress=False)
+    db = vos_catalog.VOSDatabase.from_registry(
+        CS_MSTR_LIST(), encoding='binary', show_progress=False)
 
     # Should have over 10k catalogs; Update test if this changes.
     assert len(db) > 10000
