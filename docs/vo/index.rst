@@ -17,7 +17,7 @@ Current services include:
 .. toctree::
    :maxdepth: 1
 
-   conesearch
+   conesearch/index
    samp/index
 
 There are two third-party Python packages related to ``astropy.vo``:
