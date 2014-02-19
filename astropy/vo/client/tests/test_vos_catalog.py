@@ -116,6 +116,8 @@ class TestDatabase(object):
             allow_duplicate_url=True)
         assert self.db.list_catalogs() == ['bar', 'foo', 'new_cat']
         assert self.db.list_catalogs(pattern='f') == ['foo']
+        assert self.db.list_catalogs_by_url() == ['bar.foo', 'new_url']
+        assert self.db.list_catalogs_by_url(pattern='r.f') == ['bar.foo']
 
     def test_illegal_addition(self):
         """Test illegal catalog addition."""
@@ -137,6 +139,7 @@ class TestDatabase(object):
         """
         self.db.delete_catalog_by_url('bar.foo')
         assert self.db.list_catalogs() == ['new_cat']
+        assert self.db.list_catalogs_by_url() == ['new_url']
         assert self.db._url_keys['bar.foo'] == []
 
     @pytest.mark.parametrize(
@@ -157,10 +160,13 @@ class TestDatabase(object):
             'o_cat2', vos_catalog.VOSCatalog.from_user('o_title2', 'o_url2'))
         new_db = self.db.merge(other_db)
         assert new_db.list_catalogs() == ['new_cat', 'o_cat', 'o_cat2']
+        assert new_db.list_catalogs_by_url() == ['new_url', 'o_url', 'o_url2']
 
         # Make sure inputs are unchanged
         assert self.db.list_catalogs() == ['new_cat']
+        assert self.db.list_catalogs_by_url() == ['new_url']
         assert other_db.list_catalogs() == ['o_cat', 'o_cat2']
+        assert other_db.list_catalogs_by_url() == ['o_url', 'o_url2']
 
     def test_illegal_merge(self):
         """Test illegal database merger."""
@@ -186,6 +192,7 @@ class TestWriteJson(object):
         # Read it back in
         db2 = vos_catalog.VOSDatabase.from_json(outfile)
         assert db.list_catalogs() == db2.list_catalogs()
+        assert db.list_catalogs_by_url() == db2.list_catalogs_by_url()
 
     def teardown_class(self):
         shutil.rmtree(self.outdir)

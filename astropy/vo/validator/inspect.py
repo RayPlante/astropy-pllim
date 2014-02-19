@@ -21,7 +21,7 @@ class ConeSearchResults(object):
         Cone Search database identifiers.
 
     dbs : dict
-        Stores `astropy.vo.client.vos_catalog.VOSDatabase`
+        Stores `~astropy.vo.client.vos_catalog.VOSDatabase`
         for each ``dbtypes``.
 
     catkeys : dict
@@ -54,7 +54,7 @@ class ConeSearchResults(object):
         Parameters
         ----------
         fout : output stream
-            Default is sys.stdout.
+            Default is screen output.
 
         """
         if fout is None:  # pragma: no cover

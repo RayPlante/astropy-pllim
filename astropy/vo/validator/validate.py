@@ -17,6 +17,7 @@ from ...io import votable
 from ...io.votable.exceptions import E19
 from ...io.votable.validator import html, result
 from ...logger import log
+from ...utils import OrderedDict  # For 2.6 compatibility
 from ...utils.data import get_pkg_data_contents
 from ...utils.data import REMOTE_TIMEOUT
 from ...utils.exceptions import AstropyUserWarning
@@ -118,7 +119,7 @@ def check_conesearch_sites(destdir=os.curdir, verbose=True, parallel=True,
         os.mkdir(_OUT_ROOT)
 
     # Output files
-    db_file = {}
+    db_file = OrderedDict()
     db_file['good'] = os.path.join(destdir, 'conesearch_good.json')
     db_file['warn'] = os.path.join(destdir, 'conesearch_warn.json')
     db_file['excp'] = os.path.join(destdir, 'conesearch_exception.json')

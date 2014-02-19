@@ -31,8 +31,6 @@ __all__ = ['VOSBase', 'VOSCatalog', 'VOSDatabase', 'get_remote_catalog_db',
 
 __dbversion__ = 1
 
-VO_PEDANTIC = table.PEDANTIC()
-
 BASEURL = ConfigurationItem('vos_baseurl',
                             'http://stsdas.stsci.edu/astrolib/vo_databases/',
                             'URL where VO Service database file is stored.')
@@ -251,6 +249,21 @@ class VOSDatabase(VOSBase):
 
         return VOSCatalog(self._catalogs[keys[0]])
 
+    @staticmethod
+    def _match_pattern(all_keys, pattern, sort):
+        """Used by :func:`list_catalogs` and :func:`list_catalogs_by_url`."""
+        if pattern is None or len(all_keys) == 0:
+            out_arr = all_keys
+        else:
+            pattern = re.compile(fnmatch.translate('*' + pattern + '*'),
+                                 re.IGNORECASE)
+            out_arr = [s for s in all_keys if pattern.match(s)]
+
+        if sort:
+            out_arr.sort()
+
+        return out_arr
+
     def list_catalogs(self, pattern=None, sort=True):
         """List catalog names.
 
@@ -272,19 +285,14 @@ class VOSDatabase(VOSBase):
             List of catalog names.
 
         """
-        all_catalogs = list(self._catalogs)
+        return self._match_pattern(list(self._catalogs), pattern, sort)
 
-        if pattern is None or len(all_catalogs) == 0:
-            out_arr = all_catalogs
-        else:
-            pattern = re.compile(fnmatch.translate('*' + pattern + '*'),
-                                 re.IGNORECASE)
-            out_arr = [s for s in all_catalogs if pattern.match(s)]
+    def list_catalogs_by_url(self, pattern=None, sort=True):
+        """Like :func:`list_catalogs` but using access URL."""
+        out_arr = self._match_pattern(list(self._url_keys), pattern, sort)
 
-        if sort:
-            out_arr.sort()
-
-        return out_arr
+        # Discard URL that maps to nothing
+        return [a for a in out_arr if len(self._url_keys[a]) > 0]
 
     def add_catalog(self, name, cat, allow_duplicate_url=False):
         """Add a catalog to database.
@@ -467,7 +475,7 @@ class VOSDatabase(VOSBase):
 
         kwargs : dict
             Keywords accepted by
-            :func:`astropy.utils.data.get_readable_fileobj`.
+            :func:`~astropy.utils.data.get_readable_fileobj`.
 
         Returns
         -------
@@ -814,7 +822,7 @@ def call_vo_service(service_type, catalog_db=None, pedantic=None,
                              verbose=verbose)
 
     if pedantic is None:  # pragma: no cover
-        pedantic = VO_PEDANTIC
+        pedantic = table.PEDANTIC()
 
     for name, catalog in catalogs:
         if isinstance(catalog, six.string_types):
