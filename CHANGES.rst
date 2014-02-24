@@ -97,8 +97,7 @@ New Features
   - A new sub-package, `astropy.vo.samp`, is now available (this was previously
     the SAMPy package, which has been refactored for use in Astropy). [#1907]
 
-  - Enhanced functionalities for `~astropy.vo.client.vos_catalog.VOSCatalog`
-    and `~astropy.vo.client.vos_catalog.VOSDatabase`. [#1206]
+  - Enhanced functionalities for ``VOSCatalog`` and ``VOSDatabase``. [#1206]
 
 - ``astropy.wcs``
 
