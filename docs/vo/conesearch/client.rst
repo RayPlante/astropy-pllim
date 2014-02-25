@@ -11,7 +11,7 @@ This subpackage contains modules supporting VO client-side operations.
 Catalog Manipulation
 --------------------
 
-User can manipulate VO catalog using
+You can manipulate a VO catalog using
 `~astropy.vo.client.vos_catalog.VOSCatalog`, which is basically a dictionary
 with added functionalities.
 
@@ -22,7 +22,7 @@ Examples
 
 >>> from astropy.vo.client.vos_catalog import VOSCatalog
 
-User can create a VO catalog from scratch with your own VO service by
+You can create a VO catalog from scratch with your own VO service by
 providing its title and access URL, and optionally any other metadata
 as key-value pairs:
 
@@ -41,7 +41,7 @@ url: http://ex.org/cgi-bin/cs.pl?
     "year": 2013
 }
 
-User can modify and add fields:
+You can modify and add fields:
 
 >>> my_cat['year'] = 2014
 >>> my_cat['new_field'] = 'Hello world'
@@ -55,7 +55,7 @@ User can modify and add fields:
     "year": 2014
 }
 
-In addition, user can also delete an existing field, except the compulsory
+In addition, you can also delete an existing field, except the compulsory
 title and access URL:
 
 >>> my_cat.delete_attribute('description')
@@ -74,7 +74,7 @@ title and access URL:
 Database Manipulation
 ---------------------
 
-User can manipulate VO database using
+You can manipulate VO database using
 `~astropy.vo.client.vos_catalog.VOSDatabase`, which is basically a nested
 dictionary with added functionalities.
 
@@ -85,7 +85,7 @@ Examples
 
 >>> from astropy.vo.client.vos_catalog import VOSDatabase
 
-User can choose to start with an empty database:
+You can choose to start with an empty database:
 
 >>> my_db = VOSDatabase.from_scratch()
 >>> print(my_db.dumps())
@@ -114,12 +114,12 @@ My Catalog 1
     }
 }
 
-User can write/read the new database to/from a JSON file:
+You can write/read the new database to/from a JSON file:
 
 >>> my_db.to_json('my_vo_database.json', clobber=True)
 >>> my_db = VOSDatabase.from_json('my_vo_database.json')
 
-User can also load a database from a VO registry. The process is described in
+You can also load a database from a VO registry. The process is described in
 :ref:`vo-sec-validator-build-db`, except that here, validation is not done,
 so ``validate_xxx`` keys are not added. This might generate a lot of warnings,
 especially if the registry has duplicate entries of similar services, so
@@ -173,7 +173,7 @@ which is useful in the case of multiple entries with same access URL):
 title: The Guide Star Catalog, Version 2.3.2 (GSC2.3) (STScI, 2006)
 url: http://vizier.u-strasbg.fr/viz-bin/votable/-A?-source=I/305/out&
 
-Add all ``'usno*a2'`` catalogs from registry to user database:
+Add all ``'usno*a2'`` catalogs from registry to your database:
 
 >>> for name, cat in registry_db.get_catalogs():
 ...     if name in usno_a2_list:
@@ -186,7 +186,7 @@ Add all ``'usno*a2'`` catalogs from registry to user database:
  u'USNO-A2.0 1',
  u'USNO-SA2.0 1']
 
-User can delete a catalog from the database either by name or access URL:
+You can delete a catalog from the database either by name or access URL:
 
 >>> my_db.delete_catalog('USNO-SA2.0 1')
 >>> my_db.delete_catalog_by_url(
@@ -197,7 +197,7 @@ User can delete a catalog from the database either by name or access URL:
  u'The USNO-A2.0 Catalogue (Monet+ 1998) 1',
  u'USNO-A2.0 1']
 
-User can also merge two database together:
+You can also merge two database together:
 
 >>> other_db = VOSDatabase.from_scratch()
 >>> other_db.add_catalog('My Guide Star Catalogue', gsc)
@@ -308,7 +308,7 @@ To repeat the above and suppress *all* the screen outputs (not recommended):
 ...         catalog_db='The PMM USNO-A1.0 Catalogue (Monet 1997) 1',
 ...         verbose=False)
 
-User can also use custom VO database, say, ``'my_vo_database.json'`` from
+You can also use custom VO database, say, ``'my_vo_database.json'`` from
 :ref:`VO database examples <vo-sec-client-db-manip-examples>`:
 
 >>> import os
@@ -367,7 +367,7 @@ where the user has more control of which catalog(s) to search, et cetera.
 
 .. warning::
 
-    When Cone Search returns warnings, user should decide
+    When Cone Search returns warnings, you should decide
     whether the results are reliable by inspecting the
     warning codes in `astropy.io.votable.exceptions`.
 
@@ -700,7 +700,7 @@ WARNING: W22: ... The DEFINITIONS element is deprecated in VOTable 1.1...
 >>> result.array.data.size
 50000
 
-User can also use custom Cone Search database, say, ``'my_vo_database.json'``
+You can also use custom Cone Search database, say, ``'my_vo_database.json'``
 from :ref:`VO database examples <vo-sec-client-db-manip-examples>`:
 
 >>> import os
